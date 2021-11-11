@@ -10,7 +10,7 @@
 # Network setup
 1. Change the hostname by `sudo hostnamectl set-hostname clstr-01-cp-01`. This will change the file `/etc/hostname` to add the hostname to it.
 The `hostname` file only keeps track of the system hostname and should not be a FQDN.
-2. Open `/etc/hosts` and add the following at the bottom:
+2. Open `/etc/hosts` and add the following:
     ```
     127.0.1.1 clstr-01-cp-01 clstr-01-cp-01.sayakm.me
     ```
@@ -74,6 +74,7 @@ The `hostname` file only keeps track of the system hostname and should not be a 
     ```
 5. Now we start installing k8s related stuff. Start with `containerd` CRE. Run
     ```sh
+    sudo apt-get update
     sudo apt-get install containerd
     ```
     Next, we have to initialise the default config if not present. Check if the folder `/etc/containerd` exists. If not, create it. 
@@ -147,7 +148,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     cgroup_enable=memory
     ```
     Then reboot the system. After the reboot, check again if the value of `enabled` for `memory` is `1` or not.
-10. The next steps include setting the system up for a Highly Available Control Plane. This neccesitates the presence of a Load Balancer and in this case we are going to use a software best Load Balancer called `kube-vip`. To install `kube-vip`, first we need to create a config file which will be used to convert it into a manifest which will be use by `kubeadm` while initialising to create a static pod of `kube-vip`. Start by pulling the image of `kube-vip` and creating an alias to run the container.
+10. (**MASTER ONLY**) The next steps include setting the system up for a Highly Available Control Plane. This neccesitates the presence of a Load Balancer and in this case we are going to use a software best Load Balancer called `kube-vip`. To install `kube-vip`, first we need to create a config file which will be used to convert it into a manifest which will be use by `kubeadm` while initialising to create a static pod of `kube-vip`. Start by pulling the image of `kube-vip` and creating an alias to run the container.
     ```sh
     sudo ctr images pull  ghcr.io/kube-vip/kube-vip:v0.4.0
     alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip
@@ -164,7 +165,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
 
     . ~/.bashrc
     ```
-11. Next generate the manifest for the static pod. We are turning on HA for the control plane, and load balancers for both the control plane and the worker nodes.
+11. (**MASTER ONLY**) Next generate the manifest for the static pod. We are turning on HA for the control plane, and load balancers for both the control plane and the worker nodes.
     ```sh
     kube-vip manifest pod \
         --interface eth0 \
@@ -175,7 +176,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
         --leaderElection \
         --enableLoadBalancer | sudo tee /etc/kubernetes/manifests/kube-vip.yaml
     ```
-12. Finally, we initialise the cluster using `kubeadm init`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
+12. (**MASTER ONLY**) Finally, we initialise the cluster using `kubeadm init`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
     ```sh
     KUBE_VERSION=$(sudo kubeadm version -o short)
     ```
@@ -190,7 +191,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     `--kubernetes-version` is the version of kubernetes that you are using so that newer versions are not automatically used.
 
     `--pod-network-cidr` is the CIDR block for the pod network. This is necessary for Flannel to work.
-13. The output should look something like this
+13. (**MASTER ONLY**) The output should look something like this
     ```
     [init] Using Kubernetes version: v1.22.2
     [preflight] Running pre-flight checks
@@ -277,13 +278,43 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     kubeadm join 192.168.0.150:6443 --token REDACTED \
             --discovery-token-ca-cert-hash sha256:REDACTED
     ```
-14. Next follow the instructions in the above output to craete the kubectl config file in the home directory.
+14. (**WORKER ONLY**) Then, we join the worker nodes into the cluster using `kubeadm join`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
+    ```sh
+    KUBE_VERSION=$(sudo kubeadm version -o short)
+    ```
+    Then, initialise the cluster
+    ```sh
+    sudo kubeadm join 192.168.0.150:6443 --token REDACTED --discovery-token-ca-cert-hash sha256:REDACTED
+    ```
+15. (**WORKER ONLY**) The output should look something like this
+    ```
+    [preflight] Running pre-flight checks
+        [WARNING SystemVerification]: missing optional cgroups: hugetlb
+    [preflight] Reading configuration from the cluster...
+    [preflight] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+    [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+    [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+    [kubelet-start] Starting the kubelet
+    [kubelet-start] Waiting for the kubelet to perform the TLS Bootstrap...
+
+    This node has joined the cluster:
+    * Certificate signing request was sent to apiserver and a response was received.
+    * The Kubelet was informed of the new secure connection details.
+
+    Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
+    ```
+16. (**MASTER ONLY**) Next follow the instructions in the above output to craete the kubectl config file in the home directory.
     ```sh
     mkdir -p $HOME/.kube
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
     ```
-15. Next we will deploy the pod network. We are going to use Flannel for this. We are using Flannel 0.15.0 for this. It's always better to anchor the version.
+17. (**MASTER ONLY**) Next we will deploy the pod network. We are going to use Flannel for this. We are using Flannel 0.15.0 for this. It's always better to anchor the version.
     ```sh
     kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.15.0/Documentation/kube-flannel.yml
+    ```
+18. (**WORKER ONLY**) Next copy the kubectl config file to the worker nodes. We can't use sudo to copy from the remote system and ubuntu disables the root user. So, we need to copy over the config present in the `$HOME/.kube/config` file.
+    ```sh
+    mkdir -p $HOME/.kube
+    scp ubuntu@clstr-01-cp-01:~/.kube/config $HOME/.kube/config
     ```
