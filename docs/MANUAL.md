@@ -151,21 +151,21 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
 10. (**MASTER ONLY**) The next steps include setting the system up for a Highly Available Control Plane. This neccesitates the presence of a Load Balancer and in this case we are going to use a software best Load Balancer called `kube-vip`. To install `kube-vip`, first we need to create a config file which will be used to convert it into a manifest which will be use by `kubeadm` while initialising to create a static pod of `kube-vip`. Start by pulling the image of `kube-vip` and creating an alias to run the container.
     ```sh
     sudo ctr images pull  ghcr.io/kube-vip/kube-vip:v0.4.0
-    alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip
+    alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip"
     ```
     You can optionally permanently store the above alias in the `~/.bash_aliases`.
     ```sh
     if [ ! -f ~/.bash_aliases ]; then
-        echo kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" > ~/.bash_aliases
+        echo alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" > ~/.bash_aliases
     elif grep -Fq "kube-vip=" ~/.bash_aliases; then
-        sed -i "/kube-vip=/s/^\(.*\)$/kube-vip='sudo ctr run --rm --net-host ghcr.io\/kube-vip\/kube-vip:v0.4.0 vip \/kube-vip'/g" ~/.bash_aliases
+        sed -i "/kube-vip=/s/^\(.*\)$/alias kube-vip='sudo ctr run --rm --net-host ghcr.io\/kube-vip\/kube-vip:v0.4.0 vip \/kube-vip'/g" ~/.bash_aliases
     else
-        echo kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" >> ~/.bash_aliases
+        echo aslias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" >> ~/.bash_aliases
     fi
 
     . ~/.bashrc
     ```
-11. (**MASTER ONLY**) Next generate the manifest for the static pod. We are turning on HA for the control plane, and load balancers for both the control plane and the worker nodes.
+11. (**FIRST MASTER ONLY**) Next generate the manifest for the static pod. We are turning on HA for the control plane, and load balancers for both the control plane and the worker nodes.
     ```sh
     kube-vip manifest pod \
         --interface eth0 \
@@ -176,7 +176,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
         --leaderElection \
         --enableLoadBalancer | sudo tee /etc/kubernetes/manifests/kube-vip.yaml
     ```
-12. (**MASTER ONLY**) Finally, we initialise the cluster using `kubeadm init`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
+12. (**FIRST MASTER ONLY**) Finally, we initialise the cluster using `kubeadm init`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
     ```sh
     KUBE_VERSION=$(sudo kubeadm version -o short)
     ```
@@ -191,7 +191,8 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     `--kubernetes-version` is the version of kubernetes that you are using so that newer versions are not automatically used.
 
     `--pod-network-cidr` is the CIDR block for the pod network. This is necessary for Flannel to work.
-13. (**MASTER ONLY**) The output should look something like this
+
+    The output should look something like this:
     ```
     [init] Using Kubernetes version: v1.22.2
     [preflight] Running pre-flight checks
@@ -278,15 +279,99 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     kubeadm join 192.168.0.150:6443 --token REDACTED \
             --discovery-token-ca-cert-hash sha256:REDACTED
     ```
-14. (**WORKER ONLY**) Then, we join the worker nodes into the cluster using `kubeadm join`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
+    The `token` has a TTL of 24 hours and the uploded certs will be deleted in two hours. So, if the other nodes are to be joined later than that, we need to re-generate the token and upload the certs again.
+
+    a. First, check if tokens are available
+    ```sh
+    sudo kubeadm token list
+    ```
+    If nothing is shown, proceed with generatiung the token. Else, we can use the token which has a usage of `authentication,signing`
+    ```sh
+    sudo kubeadm token create
+    ```
+    b. If during `kubeadm join`, any certificate errors come up, re-upload the certificates using
+    ```sh
+    sudo kubeadm init phase upload-certs --upload-certs
+    ```
+13. (**OTHER MASTER ONLY**) If you want to add additional control plane nodes, you can use the `kubeadm join` command:
     ```sh
     KUBE_VERSION=$(sudo kubeadm version -o short)
     ```
-    Then, initialise the cluster
+    Then, join the cluster
+    ```sh
+    sudo kubeadm join 192.168.0.150:6443 --token REDACTED --discovery-token-ca-cert-hash sha256:REDACTED --control-plane --certificate-key feb5064c88b7e3a154b5deb1d6fb379036e7a4b76862fcf08c742db7031624d9
+    ```
+    The output should look something like this:
+    ```
+    [preflight] Running pre-flight checks
+        [WARNING SystemVerification]: missing optional cgroups: hugetlb
+    [preflight] Reading configuration from the cluster...
+    [preflight] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+    [preflight] Running pre-flight checks before initializing the new control plane instance
+    [preflight] Pulling images required for setting up a Kubernetes cluster
+    [preflight] This might take a minute or two, depending on the speed of your internet connection
+    [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+    [download-certs] Downloading the certificates in Secret "kubeadm-certs" in the "kube-system" Namespace
+    [certs] Using certificateDir folder "/etc/kubernetes/pki"
+    [certs] Generating "front-proxy-client" certificate and key
+    [certs] Generating "etcd/server" certificate and key
+    [certs] etcd/server serving cert is signed for DNS names [clstr-01-cp-03 localhost] and IPs [192.168.0.52 127.0.0.1 ::1]
+    [certs] Generating "etcd/peer" certificate and key
+    [certs] etcd/peer serving cert is signed for DNS names [clstr-01-cp-03 localhost] and IPs [192.168.0.52 127.0.0.1 ::1]
+    [certs] Generating "etcd/healthcheck-client" certificate and key
+    [certs] Generating "apiserver-etcd-client" certificate and key
+    [certs] Generating "apiserver" certificate and key
+    [certs] apiserver serving cert is signed for DNS names [clstr-01-cp-03 kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 192.168.0.52 192.168.0.150]
+    [certs] Generating "apiserver-kubelet-client" certificate and key
+    [certs] Valid certificates and keys now exist in "/etc/kubernetes/pki"
+    [certs] Using the existing "sa" key
+    [kubeconfig] Generating kubeconfig files
+    [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+    [kubeconfig] Writing "admin.conf" kubeconfig file
+    [kubeconfig] Writing "controller-manager.conf" kubeconfig file
+    [kubeconfig] Writing "scheduler.conf" kubeconfig file
+    [control-plane] Using manifest folder "/etc/kubernetes/manifests"
+    [control-plane] Creating static Pod manifest for "kube-apiserver"
+    [control-plane] Creating static Pod manifest for "kube-controller-manager"
+    [control-plane] Creating static Pod manifest for "kube-scheduler"
+    [check-etcd] Checking that the etcd cluster is healthy
+    [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+    [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+    [kubelet-start] Starting the kubelet
+    [kubelet-start] Waiting for the kubelet to perform the TLS Bootstrap...
+    [etcd] Announced new etcd member joining to the existing etcd cluster
+    [etcd] Creating static Pod manifest for "etcd"
+    [etcd] Waiting for the new etcd member to join the cluster. This can take up to 40s
+    The 'update-status' phase is deprecated and will be removed in a future release. Currently it performs no operation
+    [mark-control-plane] Marking the node clstr-01-cp-03 as control-plane by adding the labels: [node-role.kubernetes.io/master(deprecated) node-role.kubernetes.io/control-plane node.kubernetes.io/exclude-from-external-load-balancers]
+    [mark-control-plane] Marking the node clstr-01-cp-03 as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+
+    This node has joined the cluster and a new control plane instance was created:
+
+    * Certificate signing request was sent to apiserver and approval was received.
+    * The Kubelet was informed of the new secure connection details.
+    * Control plane (master) label and taint were applied to the new node.
+    * The Kubernetes control plane instances scaled up.
+    * A new etcd member was added to the local/stacked etcd cluster.
+
+    To start administering your cluster from this node, you need to run the following as a regular user:
+
+            mkdir -p $HOME/.kube
+            sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+            sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+    Run 'kubectl get nodes' to see this node join the cluster.
+    ```
+14. (**OTHER MASTER ONLY**) Then, perform step 11 on the other master nodes. This is because `kubeadm` doesn't like a non-empty `/etc/kubernetes/manifests` folder.
+15. (**WORKER ONLY**) Then, we join the worker nodes into the cluster using `kubeadm join`. We need to ensure that the installed kubernetes version is the same as kubeadm. So, first do
+    ```sh
+    KUBE_VERSION=$(sudo kubeadm version -o short)
+    ```
+    Then, join the cluster
     ```sh
     sudo kubeadm join 192.168.0.150:6443 --token REDACTED --discovery-token-ca-cert-hash sha256:REDACTED
     ```
-15. (**WORKER ONLY**) The output should look something like this
+    The output should look something like this
     ```
     [preflight] Running pre-flight checks
         [WARNING SystemVerification]: missing optional cgroups: hugetlb
@@ -309,7 +394,7 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
     ```
-17. (**MASTER ONLY**) Next we will deploy the pod network. We are going to use Flannel for this. We are using Flannel 0.15.0 for this. It's always better to anchor the version.
+17. (**FIRST MASTER ONLY**) Next we will deploy the pod network. We are going to use Flannel for this. We are using Flannel 0.15.0 for this. It's always better to anchor the version.
     ```sh
     kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.15.0/Documentation/kube-flannel.yml
     ```
