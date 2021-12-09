@@ -1,6 +1,6 @@
 # SD Card setup
 1. Use Raspberry Pi Image to download and write the OS to an SD Card.
-2. If you want to connect a monitor directily, then in the `boot` paertition, change the `usercofg.txt` file to have the following:
+2. If you want to connect a monitor directily, then in the `boot` partition, change the `usercofg.txt` file to have the following:
     ```
     hdmi_force_hotplug=1
     hdmi_group=2
@@ -148,20 +148,14 @@ updating the packages and  installing `apt-transport-https` and `curl`. Then add
     cgroup_enable=memory
     ```
     Then reboot the system. After the reboot, check again if the value of `enabled` for `memory` is `1` or not.
-10. (**MASTER ONLY**) The next steps include setting the system up for a Highly Available Control Plane. This neccesitates the presence of a Load Balancer and in this case we are going to use a software best Load Balancer called `kube-vip`. To install `kube-vip`, first we need to create a config file which will be used to convert it into a manifest which will be use by `kubeadm` while initialising to create a static pod of `kube-vip`. Start by pulling the image of `kube-vip` and creating an alias to run the container.
+10. (**FIRST MASTER ONLY**) The next steps include setting the system up for a Highly Available Control Plane. This neccesitates the presence of a Load Balancer and in this case we are going to use a software best Load Balancer called `kube-vip`. To install `kube-vip`, first we need to create a config file which will be used to convert it into a manifest which will be use by `kubeadm` while initialising to create a static pod of `kube-vip`. Start by pulling the image of `kube-vip` and creating an alias to run the container.
     ```sh
     sudo ctr images pull  ghcr.io/kube-vip/kube-vip:v0.4.0
     alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip"
     ```
     You can optionally permanently store the above alias in the `~/.bash_aliases`.
     ```sh
-    if [ ! -f ~/.bash_aliases ]; then
-        echo alias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" > ~/.bash_aliases
-    elif grep -Fq "kube-vip=" ~/.bash_aliases; then
-        sed -i "/kube-vip=/s/^\(.*\)$/alias kube-vip='sudo ctr run --rm --net-host ghcr.io\/kube-vip\/kube-vip:v0.4.0 vip \/kube-vip'/g" ~/.bash_aliases
-    else
-        echo aslias kube-vip="sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip" >> ~/.bash_aliases
-    fi
+    echo alias kube-vip=\"sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:v0.4.0 vip /kube-vip\" | tee -a ~/.bash_aliases
 
     . ~/.bashrc
     ```
