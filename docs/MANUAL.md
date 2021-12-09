@@ -1,6 +1,6 @@
 # SD Card setup
 1. Use Raspberry Pi Image to download and write the OS to an SD Card.
-2. In the `boot` paertition, change the `usercofg.txt` file to have the following:
+2. If you want to connect a monitor directily, then in the `boot` paertition, change the `usercofg.txt` file to have the following:
     ```
     hdmi_force_hotplug=1
     hdmi_group=2
