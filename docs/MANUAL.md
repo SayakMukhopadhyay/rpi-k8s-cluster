@@ -41,7 +41,7 @@ The `hostname` file only keeps track of the system hostname and should not be a 
                 nameservers:
                     addresses: [8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1]
     ```
-    The above turns off DHCP. That means we need to manually configure what gateway and nameservers to use, as this was earlier provided by the DHCP server. The `addresses` clause is not only setting the static IP but also setting the subnet mask. The `gateway` is taken from the router properties. The `nameservers` are from Google and Cloudflare. Finally fo `sudo netplan apply` to commit these changes.
+    The above turns off DHCP. That means we need to manually configure what gateway and nameservers to use, as this was earlier provided by the DHCP server. The `addresses` clause is not only setting the static IP but also setting the subnet mask. The `gateway` is taken from the router properties. The `nameservers` are from Google and Cloudflare. Finally do `sudo netplan apply` to commit these changes.
 
 4. Finally we will update the `etc/hosts` file so that the FQDNs are resolved properly when called from cluster to cluster. Add the following to the file in each cluster
     ```
@@ -121,7 +121,7 @@ The `hostname` file only keeps track of the system hostname and should not be a 
     sudo systemctl restart containerd
     ```
 7. Now we are ghoing to install kubernetes and related packages. Start by 
-updating the packages and  installing `apt-transport-https` and `curl`. Then add the GPG key of the repo.
+updating the packages and installing `apt-transport-https` and `curl`. Then add the GPG key of the repo.
     ```sh
     sudo apt-get update
     sudo apt-get install -y apt-transport-https ca-certificates curl
