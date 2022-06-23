@@ -382,7 +382,7 @@ updating the packages and installing `apt-transport-https` and `curl`. Then add 
 
     Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
     ```
-16. (**MASTER ONLY**) Next follow the instructions in the above output to craete the kubectl config file in the home directory.
+16. (**MASTER ONLY**) Next follow the instructions in the above output to create the kubectl config file in the home directory.
     ```sh
     mkdir -p $HOME/.kube
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
