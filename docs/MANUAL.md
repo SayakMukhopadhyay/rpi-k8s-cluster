@@ -397,3 +397,19 @@ updating the packages and installing `apt-transport-https` and `curl`. Then add 
     mkdir -p $HOME/.kube
     scp ubuntu@clstr-01-cp-01:~/.kube/config $HOME/.kube/config
     ```
+
+# Connect via Static IP or hostname
+Right now, the generated certificates of the API server would only allow to access the API Server, like using `kubectl` from `192.168.0.0` only. If the cluster is exposed to the internet using a static IP or if a hostname is configured for that static IP, the cluster will reject connection when connecting via those. In order to add the static IP or Hostnames as SANs, we need to follow the following for each master node
+1. Ensure you are in the home directory and run `kubectl -n kube-system get configmap kubeadm-config -o jsonpath='{.data.ClusterConfiguration}' > kubeadm.yaml`. Update the file by adding
+    ```yaml
+    apiServer:
+      certSANs:
+      - "100.200.110.210"
+      - "k8s.sayakm.me"
+      - "other-k8s.domain.net"
+    ```
+where `100.200.110.210` is the static IP.
+2. Move the certificates to the home as the certificates won't be regenrated if they are present. Run `mv /etc/kubernetes/pki/apiserver.{crt,key} ~`
+3. Regenerated the api server certificate by running `kubeadm init phase certs apiserver --config kubeadm.yaml`
+4. Update the configmap used in step 1 with the updated config file.
+5. Restart the apiserver pods by restarting them.
