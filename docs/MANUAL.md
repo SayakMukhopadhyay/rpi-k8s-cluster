@@ -409,7 +409,11 @@ Right now, the generated certificates of the API server would only allow to acce
       - "other-k8s.domain.net"
     ```
 where `100.200.110.210` is the static IP.
+
 2. Move the certificates to the home as the certificates won't be regenrated if they are present. Run `mv /etc/kubernetes/pki/apiserver.{crt,key} ~`
+
 3. Regenerated the api server certificate by running `kubeadm init phase certs apiserver --config kubeadm.yaml`
+
 4. Update the configmap used in step 1 with the updated config file.
+
 5. Restart the apiserver pods by restarting them.
